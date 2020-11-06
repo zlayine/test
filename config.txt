@@ -1,0 +1,125 @@
+Zip:
+
+1- create database in cpanel with mysql wizard and give previleges all to the user
+
+2- modify the .env file in your public_html/pvtsend
+APP_URL=url_here
+DB_DATABASE=db_name_here
+DB_USERNAME=db_user_name_here
+DB_PASSWORD=db_user_password_here
+
+
+3- in the terminal, go to /public_html/pvtsend and run :
+php artisan migrate
+php artisan storage:link
+
+>>if something goes wrong here please contact me
+
+5- in whm terminal, you need to install spervisor with the following command:
+yum install epel-release
+yum update
+yum install -y supervisor
+
+6- modify this file with this command
+nano /etc/supervisord.conf
+
+-> add the following code or replace in the end of the file with this text: {user_dir} {dir_project}
+
+[program:laravel-worker]
+command=php /home/{dir_project}/public_html/pvtsend/artisan queue:work --timeout=9180 --tries=3
+process_name=%(program_name)s_%(process_num)02d
+numprocs=8
+priority=999
+autostart=true
+autorestart=true
+startsecs=1
+startretries=3
+user={user_dir}
+redirect_stderr=true
+stdout_logfile=/home/{dir_project}/public_html/pvtsend/storage/logs/worker.log
+
+7- enable the supervisord:
+systemctl enable supervisord
+
+
+8- modify .htaccess file and replace {domain} with the required information of you domain name
+<IfModule mod_rewrite.c>
+    <IfModule mod_negotiation.c>
+        Options -MultiViews -Indexes
+    </IfModule>
+
+    RewriteEngine On
+
+    # Handle Authorization Header
+    RewriteCond %{HTTP:Authorization} .
+RewriteCond %{REQUEST_URI} !^/\.well-known/acme-challenge/[0-9a-zA-Z_-]+$
+RewriteCond %{REQUEST_URI} !^/\.well-known/cpanel-dcv/[0-9a-zA-Z_-]+$
+RewriteCond %{REQUEST_URI} !^/\.well-known/pki-validation/(?:\ Ballot169)?
+RewriteCond %{REQUEST_URI} !^/\.well-known/pki-validation/[A-F0-9]{32}\.txt(?:\ Comodo\ DCV)?$
+    RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
+
+    # Redirect Trailing Slashes If Not A Folder...
+    RewriteCond %{REQUEST_FILENAME} !-d
+    RewriteCond %{REQUEST_URI} (.+)/$
+RewriteCond %{REQUEST_URI} !^/\.well-known/acme-challenge/[0-9a-zA-Z_-]+$
+RewriteCond %{REQUEST_URI} !^/\.well-known/cpanel-dcv/[0-9a-zA-Z_-]+$
+RewriteCond %{REQUEST_URI} !^/\.well-known/pki-validation/(?:\ Ballot169)?
+RewriteCond %{REQUEST_URI} !^/\.well-known/pki-validation/[A-F0-9]{32}\.txt(?:\ Comodo\ DCV)?$
+    RewriteRule ^ %1 [L,R=301]
+
+    RewriteCond %{HTTP_HOST} ^www\.{domain}\.{domain} [NC]
+RewriteCond %{REQUEST_URI} !^/\.well-known/acme-challenge/[0-9a-zA-Z_-]+$
+RewriteCond %{REQUEST_URI} !^/\.well-known/cpanel-dcv/[0-9a-zA-Z_-]+$
+RewriteCond %{REQUEST_URI} !^/\.well-known/pki-validation/(?:\ Ballot169)?
+RewriteCond %{REQUEST_URI} !^/\.well-known/pki-validation/[A-F0-9]{32}\.txt(?:\ Comodo\ DCV)?$
+    RewriteRule ^(.*)$ http://{domain}/$1 [L,R=301]
+    
+    RewriteCond %{HTTP_HOST} ^{domain}\.{domain}/index.html [NC]
+RewriteCond %{REQUEST_URI} !^/\.well-known/acme-challenge/[0-9a-zA-Z_-]+$
+RewriteCond %{REQUEST_URI} !^/\.well-known/cpanel-dcv/[0-9a-zA-Z_-]+$
+RewriteCond %{REQUEST_URI} !^/\.well-known/pki-validation/(?:\ Ballot169)?
+RewriteCond %{REQUEST_URI} !^/\.well-known/pki-validation/[A-F0-9]{32}\.txt(?:\ Comodo\ DCV)?$
+    RewriteRule ^(.*)$ http://{domain}/ [L,R=301]
+
+    # Handle Front Controller...
+    RewriteCond %{REQUEST_FILENAME} !-d
+    RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_URI} !^/\.well-known/acme-challenge/[0-9a-zA-Z_-]+$
+RewriteCond %{REQUEST_URI} !^/\.well-known/cpanel-dcv/[0-9a-zA-Z_-]+$
+RewriteCond %{REQUEST_URI} !^/\.well-known/pki-validation/(?:\ Ballot169)?
+RewriteCond %{REQUEST_URI} !^/\.well-known/pki-validation/[A-F0-9]{32}\.txt(?:\ Comodo\ DCV)?$
+    RewriteRule ^ index.php [L]
+    
+</IfModule>
+
+# php -- BEGIN cPanel-generated handler, do not edit
+# Set the “ea-php71” package as the default “PHP” programming language.
+<IfModule mime_module>
+  AddHandler application/x-httpd-ea-php71 .php .php7 .phtml
+</IfModule>
+# php -- END cPanel-generated handler, do not edit
+
+9- to check if everything is working, run this command:
+systemctl status supervisord.service
+
+>>it should show that the service is running
+
+10- if anytime you need to restart the service run this command:
+systemctl restart supervisord
+
+11- in WHM go to multiPHP INI Editor and select editor mode, then select php version 7.2
+search for these lines separately and modify them:
+
+memory_limit = 128M
+upload_max_filesize = 200M
+allow_url_fopen = on
+
+12- install redis with the following commands
+yum install http://rpms.remirepo.net/enterprise/remi-release-7.rpm
+yum-config-manager --enable remi
+yum install redis
+systemctl start redis
+systemctl enable redis
+
+13- test redis with : redis-cli -h localhost ping
+you should get: PONG
